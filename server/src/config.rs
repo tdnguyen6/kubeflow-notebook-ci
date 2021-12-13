@@ -1,24 +1,20 @@
-use serde::Deserialize;
 pub use config::ConfigError;
+use serde::Deserialize;
 
-#[derive(Deserialize, Default)]
+#[derive(Deserialize, Default, Clone)]
 pub struct Config {
     pub server: ServerCfg,
-    pub kubeflow: KubeflowCfg,
     pub database_url: String,
-    pub jwt_secret: String,
+    pub database_maxcon: u32,
+    pub cluster_container_registry: String,
+    pub default_image_name: String,
 }
 
-#[derive(Deserialize, Default)]
+#[derive(Deserialize, Default, Clone)]
 pub struct ServerCfg {
     pub host: String,
     pub port: i32,
-}
-
-#[derive(Deserialize, Default)]
-pub struct KubeflowCfg {
-    pub userid_header: String,
-    pub interactive_endpoint: String,
+    pub base_path: String,
 }
 
 impl Config {
