@@ -1,29 +1,32 @@
 use std::collections::HashMap;
 
-use crate::models::dto;
+use crate::{models::dto, utils};
 
 use super::update_backup;
 use actix_web::{web, HttpResponse};
 use serde::Serialize;
 use sqlx::PgPool;
 
-#[actix_web::get("/api/repo/{id}/map")]
+#[actix_web::get("/api/repo/map")]
 pub async fn get_map(
     pool: web::Data<PgPool>,
 ) -> actix_web::Result<impl actix_web::Responder, Box<dyn std::error::Error>> {
     let all_rec = sqlx::query!(
         "SELECT 
             c.id AS repo_id,
-            c.git,
-            c.log,
+            c.uri,
+            c.secret_namespace,
+            c.build_log,
+            c.track_log,
             c.digest,
-            c.update_time,
+            c.private_repo,
+            c.repo_credential_secret,
             c.updating,
-            n.id,
             n.name,
-            n.image
+            n.namespace
         FROM ci_jobs c
         JOIN notebooks n ON c.id = n.repo_id
+        WHERE c.should_track = true
         "
     )
     .fetch_all(&**pool)
@@ -32,11 +35,9 @@ pub async fn get_map(
     let mut repo_map = HashMap::<i32, dto::Repo>::new();
 
     for rec in all_rec {
-        let new_nb = dto::Notebook {
-            id: rec.id.unwrap(),
+        let new_nb = dto::NotebookId {
             name: rec.name.unwrap().to_string(),
-            image: rec.image,
-            repo_id: rec.repo_id,
+            namespace: rec.namespace.unwrap(),
         };
         let repo_id = rec.repo_id.unwrap();
         if repo_map.contains_key(&repo_id) {
@@ -51,18 +52,21 @@ pub async fn get_map(
                 repo_id,
                 dto::Repo {
                     id: repo_id,
-                    git: rec.git.unwrap(),
+                    uri: rec.uri.unwrap(),
                     updating: rec.updating.unwrap(),
-                    log: rec.log,
+                    private_repo: rec.private_repo.unwrap(),
+                    secret_namespace: rec.secret_namespace.unwrap(),
+                    repo_credential_secret: rec.repo_credential_secret.unwrap(),
+                    build_log: rec.build_log,
+                    track_log: rec.track_log,
                     digest: rec.digest,
-                    update_time: rec.update_time.map(|t| t.to_rfc3339()),
                     notebooks: Some(vec![new_nb]),
                 },
             );
         }
     }
 
-    Ok("good")
+    Ok(HttpResponse::Ok().json(repo_map))
 }
 
 #[actix_web::get("/api/repo/{id}")]
@@ -73,10 +77,13 @@ pub async fn get_repo(
     let rec = sqlx::query!(
         "SELECT 
             id,
-            git,
-            log,
+            uri,
+            secret_namespace,
+            build_log,
+            track_log,
             digest,
-            update_time,
+            private_repo,
+            repo_credential_secret,
             updating
         FROM ci_jobs WHERE id = $1",
         &id.clone()
@@ -86,12 +93,15 @@ pub async fn get_repo(
 
     Ok(HttpResponse::Ok().json(&dto::Repo {
         id: rec.id,
-        git: rec.git.unwrap(),
-        updating: rec.updating.unwrap(),
-        log: rec.log,
-        digest: rec.digest,
-        update_time: rec.update_time.map(|t| t.to_rfc3339()),
-        notebooks: None,
+        uri: rec.uri.unwrap_or_default(),
+        secret_namespace: rec.secret_namespace.unwrap_or_default(),
+        updating: rec.updating.unwrap_or_default(),
+        private_repo: rec.private_repo.unwrap_or_default(),
+        repo_credential_secret: rec.repo_credential_secret.unwrap_or_default(),
+        build_log: rec.build_log.unwrap_or_default(),
+        track_log: rec.track_log.unwrap_or_default(),
+        digest: rec.digest.unwrap_or_default(),
+        notebooks: Vec::default(),
     }))
 }
 
@@ -173,18 +183,15 @@ pub async fn updating(
     }))
 }
 
-#[actix_web::post("/api/repo/{id}/log")]
-pub async fn add_log(
+#[actix_web::post("/api/repo/{id}/build_log")]
+pub async fn add_build_log(
     pool: web::Data<PgPool>,
     id: web::Path<i32>,
+    body: String,
 ) -> actix_web::Result<impl actix_web::Responder, Box<dyn std::error::Error>> {
-    let res1 = sqlx::query!("SELECT log FROM ci_jobs WHERE id=$1", &id.clone())
-        .fetch_one(&**pool)
-        .await?;
-
     let res = sqlx::query!(
-        "UPDATE ci_jobs SET log = $1 WHERE id=$2",
-        &res1.log.unwrap(),
+        "UPDATE ci_jobs SET build_log = build_log || $1 WHERE id=$2",
+        &format!("{}\n", &body),
         &id.into_inner()
     )
     .execute(&**pool)
@@ -200,16 +207,60 @@ pub async fn add_log(
     Ok(HttpResponse::InternalServerError().finish())
 }
 
-#[actix_web::get("/api/repo/{id}/log")]
-pub async fn get_log(
+#[actix_web::get("/api/repo/{id}/build_log")]
+pub async fn get_build_log(
     pool: web::Data<PgPool>,
     id: web::Path<i32>,
 ) -> actix_web::Result<impl actix_web::Responder, Box<dyn std::error::Error>> {
-    let res = sqlx::query!("SELECT log FROM ci_jobs WHERE id=$1", &id.into_inner())
-        .fetch_one(&**pool)
-        .await?;
+    let res = sqlx::query!(
+        "SELECT build_log FROM ci_jobs WHERE id=$1",
+        &id.into_inner()
+    )
+    .fetch_one(&**pool)
+    .await?;
 
-    Ok(HttpResponse::Accepted().body(res.log.unwrap()))
+    Ok(HttpResponse::Accepted().body(res.build_log.unwrap()))
+}
+
+#[actix_web::post("/api/repo/{id}/track_log")]
+pub async fn add_track_log(
+    pool: web::Data<PgPool>,
+    id: web::Path<i32>,
+    body: String,
+) -> actix_web::Result<impl actix_web::Responder, Box<dyn std::error::Error>> {
+    update_backup::backup_track_log(id.clone(), &**pool).await?;
+
+    let res = sqlx::query!(
+        "UPDATE ci_jobs SET track_log = track_log || $1 WHERE id=$2",
+        &format!("{}\n", &body),
+        &id.into_inner()
+    )
+    .execute(&**pool)
+    .await;
+
+    if let Ok(r) = res {
+        if r.rows_affected() == 1 {
+            return Ok(HttpResponse::Ok().finish());
+        }
+        return Ok(HttpResponse::InternalServerError().finish());
+    }
+
+    Ok(HttpResponse::InternalServerError().finish())
+}
+
+#[actix_web::get("/api/repo/{id}/track_log")]
+pub async fn get_track_log(
+    pool: web::Data<PgPool>,
+    id: web::Path<i32>,
+) -> actix_web::Result<impl actix_web::Responder, Box<dyn std::error::Error>> {
+    let res = sqlx::query!(
+        "SELECT track_log FROM ci_jobs WHERE id=$1",
+        &id.into_inner()
+    )
+    .fetch_one(&**pool)
+    .await?;
+
+    Ok(HttpResponse::Accepted().body(res.track_log.unwrap()))
 }
 
 #[actix_web::post("/api/repo/{id}/image_digest/{digest}")]
@@ -248,16 +299,53 @@ pub async fn get_image_digest(
     Ok(HttpResponse::Accepted().body(res.digest.unwrap()))
 }
 
-pub async fn put_repo(pool: &PgPool, git: &String) -> anyhow::Result<i32> {
+pub async fn put_repo(
+    pool: &PgPool,
+    uri: &str,
+    secret_namespace: &str,
+    private_repo: bool,
+    repo_credential_secret: &str,
+) -> anyhow::Result<i32> {
     sqlx::query!(
-        "INSERT INTO ci_jobs(git) VALUES ($1) 
-        ON CONFLICT(git) 
-        DO NOTHING
+        "INSERT INTO ci_jobs(uri, secret_namespace, private_repo, repo_credential_secret) 
+        VALUES ($1, $2, $3, $4) 
+        ON CONFLICT (uri, secret_namespace) DO UPDATE SET
+            uri = EXCLUDED.uri,
+            secret_namespace = EXCLUDED.secret_namespace,
+            private_repo = EXCLUDED.private_repo,
+            repo_credential_secret = EXCLUDED.repo_credential_secret
         RETURNING id",
-        git
+        uri,
+        secret_namespace,
+        private_repo,
+        repo_credential_secret
     )
     .fetch_one(pool)
     .await
     .map(|r| r.id)
     .map_err(|e| anyhow::Error::from(e))
+}
+
+#[actix_web::patch("/api/repo/{id}/should_track/{value}")]
+pub async fn should_track(
+    pool: web::Data<PgPool>,
+    id: web::Path<i32>,
+    value: web::Path<bool>,
+) -> actix_web::Result<impl actix_web::Responder, Box<dyn std::error::Error>> {
+    let res = sqlx::query!(
+        "UPDATE ci_jobs SET should_track = $2 WHERE id=$1",
+        &id.into_inner(),
+        &value.into_inner(),
+    )
+    .execute(&**pool)
+    .await;
+
+    if let Ok(r) = res {
+        if r.rows_affected() == 1 {
+            return Ok(HttpResponse::Ok().finish());
+        }
+        return Ok(HttpResponse::InternalServerError().finish());
+    }
+
+    Ok(HttpResponse::InternalServerError().finish())
 }

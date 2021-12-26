@@ -1,0 +1,11 @@
+version: '3'
+services:
+  node:
+    build: .
+    entrypoint: sh
+    stdin_open: true
+    volumes:
+      - ../..:/app
+    tty: true
+    ports:
+      - 127.0.0.1:3001:8080

@@ -1,5 +1,16 @@
 {
   "terminal.integrated.env.linux": {
     "DATABASE_URL": "postgres://pg:pg@localhost/pg"
-  }
+  },
+  "sqltools.connections": [
+    {
+      "previewLimit": 50,
+      "server": "localhost",
+      "port": 5432,
+      "askForPassword": true,
+      "driver": "PostgreSQL",
+      "name": "notebook-ci",
+      "connectString": "postgres://pg:pg@localhost/pg"
+    }
+  ]
 }
