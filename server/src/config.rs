@@ -7,6 +7,7 @@ pub struct Config {
     pub database_url: String,
     pub database_maxcon: u32,
     pub cluster_container_registry: String,
+    pub kubeflow: KubeflowCfg,
     pub default_image_name: String,
 }
 
@@ -15,6 +16,14 @@ pub struct ServerCfg {
     pub host: String,
     pub port: i32,
     pub base_path: String,
+}
+
+
+#[derive(Deserialize, Default, Clone)]
+pub struct KubeflowCfg {
+    pub userid_header: String,
+    pub notebook_resource: String,
+    pub profile_resource: String,
 }
 
 impl Config {

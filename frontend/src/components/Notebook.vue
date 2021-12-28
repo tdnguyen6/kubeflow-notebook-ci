@@ -30,16 +30,30 @@
             </div>
             <div class="tooltip__text">Currently building</div>
           </div>
+          <!-- v-if="nb.enabled && !nb.building && nb.out_of_sync" -->
+          <transition name="fade">
+            <div v-if="nb.enabled && !nb.building && nb.out_of_sync">
+              <transition name="fade">
+                <div class="tooltip" v-if="nb.syncing">
+                  <div class="building building--sync">
+                    <div class="building__inner building--sync__inner"></div>
+                  </div>
+                  <div class="tooltip__text">Currently building</div>
+                </div>
 
-          <div
-            class="cta sync"
-            v-if="nb.enabled && !nb.building && nb.out_of_sync"
-          >
-            <div class="tooltip">
-              <fa icon="sync-alt" />
-              <div class="tooltip__text">Sync image</div>
+                <div
+                  v-else
+                  class="cta sync"
+                  @click="$emit('syncImage', nb.name)"
+                >
+                  <div class="tooltip">
+                    <fa icon="sync-alt" />
+                    <div class="tooltip__text">Sync image</div>
+                  </div>
+                </div>
+              </transition>
             </div>
-          </div>
+          </transition>
         </div>
       </div>
       <div class="block__body">
@@ -196,7 +210,7 @@ export default {
 }
 
 .building {
-  border: 3px solid #686040; /* Light grey */
+  border: 3px solid #969389; /* Light grey */
   border-top: 3px solid #caae55; /* Blue */
   border-radius: 50%;
   width: 30px;
@@ -210,6 +224,13 @@ export default {
     height: 100%;
     border-radius: 50%;
     background: #d2ac20;
+  }
+
+  &--sync {
+    border-top: 3px solid #3c77ca; /* Blue */
+    &__inner {
+      background: #3473cc;
+    }
   }
 }
 

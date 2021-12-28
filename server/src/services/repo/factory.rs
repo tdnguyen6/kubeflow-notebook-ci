@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{models::dto, utils};
+use crate::models::dto;
 
 use super::update_backup;
 use actix_web::{web, HttpResponse};
@@ -20,10 +20,18 @@ pub async fn get_map(
             c.track_log,
             c.digest,
             c.private_repo,
+            c.dockerfile,
             c.repo_credential_secret,
             c.updating,
+            n.id,
             n.name,
-            n.namespace
+            n.namespace,
+            n.image,
+            n.registry_credential_secret,
+            n.private_registry,
+            n.registry,
+            n.syncing,
+            n.auto_sync
         FROM ci_jobs c
         JOIN notebooks n ON c.id = n.repo_id
         WHERE c.should_track = true
@@ -35,32 +43,47 @@ pub async fn get_map(
     let mut repo_map = HashMap::<i32, dto::Repo>::new();
 
     for rec in all_rec {
-        let new_nb = dto::NotebookId {
-            name: rec.name.unwrap().to_string(),
-            namespace: rec.namespace.unwrap(),
+        let new_nb = dto::Notebook {
+            id: rec.id.unwrap_or_default(),
+            nb_id: dto::NotebookId {
+                name: rec.name.unwrap().to_string(),
+                namespace: rec.namespace.unwrap(),
+            },
+            nb_data: dto::NotebookData {
+                image: rec.image.unwrap_or_default(),
+                registry_credential_secret: rec.registry_credential_secret.unwrap_or_default(),
+                private_registry: rec.private_registry.unwrap_or_default(),
+                registry: rec.registry.unwrap_or_default(),
+                repo_id: rec.repo_id.unwrap_or_default(),
+                repo_uri: rec.uri.unwrap_or_default(),
+                private_repo: rec.private_repo.unwrap_or_default(),
+                repo_credential_secret: rec.repo_credential_secret.unwrap_or_default(),
+                auto_sync: rec.auto_sync.unwrap_or_default(),
+                syncing: rec.syncing.unwrap_or_default(),
+                dockerfile: rec.dockerfile.unwrap_or_default(),
+            },
         };
-        let repo_id = rec.repo_id.unwrap();
-        if repo_map.contains_key(&repo_id) {
-            let onb = &mut (*repo_map.get_mut(&repo_id).unwrap()).notebooks;
-            if let Some(nb) = onb {
-                nb.push(new_nb);
-            } else {
-                (*repo_map.get_mut(&repo_id).unwrap()).notebooks = Some(vec![new_nb])
-            }
+        if repo_map.contains_key(&new_nb.nb_data.repo_id) {
+            let nb_vec = &mut (*repo_map.get_mut(&new_nb.nb_data.repo_id).unwrap()).notebooks;
+            nb_vec.push(new_nb);
         } else {
+            let uri = new_nb.nb_data.repo_uri.clone();
+            let repo_credential_secret = new_nb.nb_data.repo_credential_secret.clone();
+            let dockerfile = new_nb.nb_data.dockerfile.clone();
             repo_map.insert(
-                repo_id,
+                new_nb.nb_data.repo_id,
                 dto::Repo {
-                    id: repo_id,
-                    uri: rec.uri.unwrap(),
-                    updating: rec.updating.unwrap(),
-                    private_repo: rec.private_repo.unwrap(),
-                    secret_namespace: rec.secret_namespace.unwrap(),
-                    repo_credential_secret: rec.repo_credential_secret.unwrap(),
-                    build_log: rec.build_log,
-                    track_log: rec.track_log,
-                    digest: rec.digest,
-                    notebooks: Some(vec![new_nb]),
+                    id: new_nb.nb_data.repo_id,
+                    uri: uri,
+                    updating: rec.updating.unwrap_or_default(),
+                    private_repo: rec.private_repo.unwrap_or_default(),
+                    secret_namespace: rec.secret_namespace.unwrap_or_default(),
+                    repo_credential_secret: repo_credential_secret,
+                    build_log: rec.build_log.unwrap_or_default(),
+                    track_log: rec.track_log.unwrap_or_default(),
+                    digest: rec.digest.unwrap_or_default(),
+                    dockerfile: dockerfile,
+                    notebooks: vec![new_nb],
                 },
             );
         }
@@ -81,6 +104,7 @@ pub async fn get_repo(
             secret_namespace,
             build_log,
             track_log,
+            dockerfile,
             digest,
             private_repo,
             repo_credential_secret,
@@ -101,6 +125,7 @@ pub async fn get_repo(
         build_log: rec.build_log.unwrap_or_default(),
         track_log: rec.track_log.unwrap_or_default(),
         digest: rec.digest.unwrap_or_default(),
+        dockerfile: rec.dockerfile,
         notebooks: Vec::default(),
     }))
 }
@@ -125,7 +150,6 @@ pub async fn start_update(
         if r.rows_affected() == 1 {
             return Ok(HttpResponse::Ok().finish());
         }
-        return Ok(HttpResponse::InternalServerError().finish());
     }
 
     Ok(HttpResponse::InternalServerError().finish())
@@ -147,7 +171,6 @@ pub async fn end_update(
         if r.rows_affected() == 1 {
             return Ok(HttpResponse::Ok().finish());
         }
-        return Ok(HttpResponse::InternalServerError().finish());
     }
 
     Ok(HttpResponse::InternalServerError().finish())
@@ -189,9 +212,15 @@ pub async fn add_build_log(
     id: web::Path<i32>,
     body: String,
 ) -> actix_web::Result<impl actix_web::Responder, Box<dyn std::error::Error>> {
+    let current_log = sqlx::query!("SELECT build_log FROM ci_jobs WHERE id = $1", &id.clone())
+        .fetch_one(&**pool)
+        .await?
+        .build_log
+        .unwrap_or_default();
+
     let res = sqlx::query!(
-        "UPDATE ci_jobs SET build_log = build_log || $1 WHERE id=$2",
-        &format!("{}\n", &body),
+        "UPDATE ci_jobs SET build_log = $1 WHERE id=$2",
+        &format!("{}{}\n", &current_log, &body),
         &id.into_inner()
     )
     .execute(&**pool)
@@ -201,7 +230,6 @@ pub async fn add_build_log(
         if r.rows_affected() == 1 {
             return Ok(HttpResponse::Ok().finish());
         }
-        return Ok(HttpResponse::InternalServerError().finish());
     }
 
     Ok(HttpResponse::InternalServerError().finish())
@@ -219,7 +247,7 @@ pub async fn get_build_log(
     .fetch_one(&**pool)
     .await?;
 
-    Ok(HttpResponse::Accepted().body(res.build_log.unwrap()))
+    Ok(HttpResponse::Accepted().body(res.build_log.unwrap_or_default()))
 }
 
 #[actix_web::post("/api/repo/{id}/track_log")]
@@ -231,8 +259,8 @@ pub async fn add_track_log(
     update_backup::backup_track_log(id.clone(), &**pool).await?;
 
     let res = sqlx::query!(
-        "UPDATE ci_jobs SET track_log = track_log || $1 WHERE id=$2",
-        &format!("{}\n", &body),
+        "UPDATE ci_jobs SET track_log = $1 WHERE id=$2",
+        &body,
         &id.into_inner()
     )
     .execute(&**pool)
@@ -242,7 +270,6 @@ pub async fn add_track_log(
         if r.rows_affected() == 1 {
             return Ok(HttpResponse::Ok().finish());
         }
-        return Ok(HttpResponse::InternalServerError().finish());
     }
 
     Ok(HttpResponse::InternalServerError().finish())
@@ -260,18 +287,18 @@ pub async fn get_track_log(
     .fetch_one(&**pool)
     .await?;
 
-    Ok(HttpResponse::Accepted().body(res.track_log.unwrap()))
+    Ok(HttpResponse::Accepted().body(res.track_log.unwrap_or_default()))
 }
 
-#[actix_web::post("/api/repo/{id}/image_digest/{digest}")]
+#[actix_web::post("/api/repo/{id}/image_digest")]
 pub async fn set_image_digest(
     pool: web::Data<PgPool>,
     id: web::Path<i32>,
-    digest: web::Path<String>,
+    digest: String,
 ) -> actix_web::Result<impl actix_web::Responder, Box<dyn std::error::Error>> {
     let res = sqlx::query!(
         "UPDATE ci_jobs SET digest = $1 WHERE id=$2",
-        &digest.into_inner(),
+        &digest,
         &id.into_inner()
     )
     .execute(&**pool)
@@ -281,7 +308,6 @@ pub async fn set_image_digest(
         if r.rows_affected() == 1 {
             return Ok(HttpResponse::Ok().finish());
         }
-        return Ok(HttpResponse::InternalServerError().finish());
     }
 
     Ok(HttpResponse::InternalServerError().finish())
@@ -296,7 +322,7 @@ pub async fn get_image_digest(
         .fetch_one(&**pool)
         .await?;
 
-    Ok(HttpResponse::Accepted().body(res.digest.unwrap()))
+    Ok(HttpResponse::Accepted().body(res.digest.unwrap_or_default()))
 }
 
 pub async fn put_repo(
@@ -305,20 +331,23 @@ pub async fn put_repo(
     secret_namespace: &str,
     private_repo: bool,
     repo_credential_secret: &str,
+    dockerfile: &str,
 ) -> anyhow::Result<i32> {
     sqlx::query!(
-        "INSERT INTO ci_jobs(uri, secret_namespace, private_repo, repo_credential_secret) 
-        VALUES ($1, $2, $3, $4) 
-        ON CONFLICT (uri, secret_namespace) DO UPDATE SET
+        "INSERT INTO ci_jobs(uri, secret_namespace, private_repo, repo_credential_secret, dockerfile) 
+        VALUES ($1, $2, $3, $4, $5) 
+        ON CONFLICT (uri, secret_namespace, dockerfile) DO UPDATE SET
             uri = EXCLUDED.uri,
             secret_namespace = EXCLUDED.secret_namespace,
             private_repo = EXCLUDED.private_repo,
-            repo_credential_secret = EXCLUDED.repo_credential_secret
+            repo_credential_secret = EXCLUDED.repo_credential_secret,
+            dockerfile = EXCLUDED.dockerfile
         RETURNING id",
         uri,
         secret_namespace,
         private_repo,
-        repo_credential_secret
+        repo_credential_secret,
+        dockerfile
     )
     .fetch_one(pool)
     .await
@@ -344,7 +373,6 @@ pub async fn should_track(
         if r.rows_affected() == 1 {
             return Ok(HttpResponse::Ok().finish());
         }
-        return Ok(HttpResponse::InternalServerError().finish());
     }
 
     Ok(HttpResponse::InternalServerError().finish())

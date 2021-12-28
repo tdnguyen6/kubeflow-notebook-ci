@@ -21,11 +21,13 @@ pub struct NotebookData {
     pub registry_credential_secret: String,
     pub private_registry: bool,
     pub registry: String,
-    pub repo_id: Option<i32>,
+    pub repo_id: i32,
     pub repo_uri: String,
+    pub dockerfile: String,
     pub private_repo: bool,
     pub repo_credential_secret: String,
     pub auto_sync: bool,
+    pub syncing: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -38,6 +40,7 @@ pub struct Repo {
     pub updating: bool,
     pub build_log: String,
     pub track_log: String,
+    pub dockerfile: String,
     pub digest: String,
     pub notebooks: Vec<Notebook>,
 }
@@ -59,5 +62,8 @@ pub mod frontend {
         pub building: bool,
         pub enabled: bool,
         pub out_of_sync: bool,
+        pub syncing: bool,
+        pub dockerfile: String,
+        pub repo_id: i32,
     }
 }

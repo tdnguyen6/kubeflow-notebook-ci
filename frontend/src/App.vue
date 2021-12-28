@@ -32,7 +32,7 @@
         <fa icon="sort-alpha-down-alt" />
       </div>
       <div class="tooltip">
-        <div class="nb-utils__cta sync" @click="showSearchKey()">
+        <div class="nb-utils__cta sync" @click="syncAllImages()">
           <fa icon="sync-alt" />
         </div>
         <div class="tooltip__text">Sync images of all notebooks</div>
@@ -45,6 +45,7 @@
           :key="i"
           :nb="nb"
           :appData="appData"
+          @syncImage="(name) => syncImage(name)"
         />
       </transition-group>
     </div>
@@ -67,23 +68,10 @@ export default {
         show: false,
         type: "",
       },
+      dataFetchCompleted: true,
     };
   },
   created() {
-    // let res = await fetch("notebooks.json");
-    // this.notebooks = await res.json();
-    // this.appData = {
-    //   notebooks: JSON.parse(sessionStorage.notebooks),
-    //   enabledNotebooks: JSON.parse(sessionStorage.enabledNotebooks),
-    //   k8sSecrets: JSON.parse(sessionStorage.k8sSecrets),
-    //   namespace: sessionStorage.namespace,
-    // };
-    // console.log('before delete');
-    // sessionStorage.removeItem("notebooks");
-    // sessionStorage.removeItem("enabledNotebooks");
-    // sessionStorage.removeItem("k8sSecrets");
-    // sessionStorage.removeItem("namespace");
-    // console.log('after delete');
     this.modalConfig = {
       show: true,
       type: "loading",
@@ -114,9 +102,6 @@ export default {
     cmpToInt(a, b) {
       return a > b ? 1 : -1;
     },
-    showSearchKey() {
-      console.log(this.searchKey);
-    },
     closeModal() {
       this.modalConfig = {
         show: false,
@@ -124,11 +109,30 @@ export default {
       };
     },
     async initData() {
-      let res = await fetch(
-        `${process.env.VUE_APP_BACKEND_HOST}/api/frontend-data?email=${sessionStorage.userid}`
+      if (this.dataFetchCompleted) {
+        try {
+          this.dataFetchCompleted = false;
+          let res = await fetch(
+            `${process.env.VUE_APP_BACKEND_HOST}/api/frontend-data?email=${sessionStorage.userid}`
+          );
+          let j = await res.json();
+          this.appData = j;
+        } finally {
+          this.dataFetchCompleted = true;
+        }
+      }
+    },
+    async syncImage(name) {
+      await fetch(
+        `${process.env.VUE_APP_BACKEND_HOST}/api/notebook/restart_pod?name=${name}&namespace=${this.appData.namespace}`
       );
-      let j = await res.json();
-      this.appData = j;
+    },
+    async syncAllImages() {
+      for (const nb of this.notebooksView) {
+        if (nb.enabled && !nb.building && nb.out_of_sync) {
+          await this.syncImage(nb.name);
+        }
+      }
     },
   },
 };
@@ -136,6 +140,7 @@ export default {
 
 <style lang="scss">
 @import url("https://fonts.googleapis.com/css2?family=Roboto:wght@300&display=swap");
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono&family=Roboto:wght@300&display=swap');
 
 body {
   margin: 0;
@@ -202,7 +207,7 @@ body {
 
     &-box {
       input {
-        font-size: 1.25rem;
+        font-size: 1rem;
         border: none;
         border-bottom: 1px solid $gray-2;
       }

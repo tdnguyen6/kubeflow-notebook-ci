@@ -1,13 +1,13 @@
-use actix_web::{post, web, Responder};
+use actix_web::{get, web, Responder};
 
 use crate::{config::Config, utils};
 
-#[post("/api/reconcile")]
+#[get("/api/reconcile")]
 async fn reconcile(
     pool: web::Data<sqlx::PgPool>,
-    _config: web::Data<Config>,
+    config: web::Data<Config>,
 ) -> actix_web::Result<impl Responder, Box<dyn std::error::Error>> {
-    let namespaces = utils::all_kf_users_namespaces()?;
+    let namespaces = utils::all_kf_users_namespaces(&config)?;
     let res = sqlx::query!(
         "DELETE FROM notebooks WHERE namespace != ALL($1)",
         &namespaces[..]

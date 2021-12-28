@@ -16,8 +16,12 @@ export default {
   },
   created() {
     this.updateDataInterval = setInterval(async () => {
-      let res = await fetch("http://localhost:5500/output.json");
-      this.output = this.convert.toHtml(await res.text());
+      if (this.nb.repo_id >= 0) {
+        let res = await fetch(
+          `${process.env.VUE_APP_BACKEND_HOST}/api/repo/${this.nb.repo_id}/track_log`
+        );
+        this.output = this.convert.toHtml(await res.text());
+      }
       if (!this.ready) {
         this.$emit("ready");
         this.ready = true;

@@ -11,13 +11,17 @@ export default {
       output: "",
       convert: new Convert(),
       ready: false,
-      updateDataInterval: null
+      updateDataInterval: null,
     };
   },
   created() {
     this.updateDataInterval = setInterval(async () => {
-      let res = await fetch("http://localhost:5500/output2.json");
-      this.output = this.convert.toHtml(await res.text());
+      if (this.nb.repo_id >= 0) {
+        let res = await fetch(
+          `${process.env.VUE_APP_BACKEND_HOST}/api/repo/${this.nb.repo_id}/build_log`
+        );
+        this.output = this.convert.toHtml(await res.text());
+      }
       if (!this.ready) {
         this.$emit("ready");
         this.ready = true;
@@ -25,7 +29,7 @@ export default {
     }, 1000);
   },
   beforeUnmount() {
-    clearInterval(this.updateDataInterval)
+    clearInterval(this.updateDataInterval);
   },
   props: {
     appData: {},

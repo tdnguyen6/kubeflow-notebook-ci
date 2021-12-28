@@ -43,7 +43,7 @@
                       </tr>
                       <tr>
                         <th>Supported Protocols</th>
-                        <td>http | https | ssh</td>
+                        <td>http | https</td>
                       </tr>
                       <tr>
                         <th>Path Spec</th>
@@ -68,12 +68,6 @@
                           http://github.com/acme/myproject.git//bar@branches/main
                           <br />
                           https://bitbucket.org/user/project.git//baz@tags/my-tag
-                          <br />
-                          ssh://github.com/acme/myproject.git//baz
-                          <br />
-                          ssh://github.com/acme/myproject@tags/my-tag
-                          <br />
-                          ssh://github.com/acme/myproject@branches/my-branch
                         </td>
                       </tr>
                     </table>
@@ -118,20 +112,12 @@
                       class="block__explain"
                       v-if="explainations.repo.secret"
                     >
-                      Needed data keys based on protocol:
-                      <table>
-                        <tr>
-                          <th>HTTP(S)</th>
-                          <td>
-                            GIT_USERNAME <br />
-                            GIT_PASSWORD (this can also be an access token)
-                          </td>
-                        </tr>
-                        <tr>
-                          <th>SSH</th>
-                          <td>GIT_SSH_KEY</td>
-                        </tr>
-                      </table>
+                      Supports basic authentication only. Required a secret of
+                      type kubernetes.io/basic-auth, which must contains 2 keys:
+                      <ul>
+                        <li>username</li>
+                        <li>password (this can also be an access token)</li>
+                      </ul>
                     </div>
                   </transition>
                   <div class="block__input">
@@ -168,6 +154,66 @@
                   />
                 </div>
               </div>
+              <div class="block">
+                <div class="block__title">
+                  Registry name
+                  <div
+                    class="block__explain-toggle"
+                    :class="{
+                      'block__explain-toggle--active':
+                        explainations.image.registry,
+                    }"
+                    @click="
+                      explainations.image.registry =
+                        !explainations.image.registry
+                    "
+                  >
+                    <fa icon="question-circle" />
+                  </div>
+                </div>
+                <div class="block__explain" v-if="explainations.image.registry">
+                  Default to the part before first slash.
+                </div>
+                <div class="block__input">
+                  <input
+                    type="text"
+                    v-model="form.image.registry"
+                    :placeholder="conventionalRegistry()"
+                  />
+                </div>
+              </div>
+              <div class="block">
+                <div class="block__title">
+                  Dockerfile
+                  <div
+                    class="block__explain-toggle"
+                    :class="{
+                      'block__explain-toggle--active':
+                        explainations.image.dockerfile,
+                    }"
+                    @click="
+                      explainations.image.dockerfile =
+                        !explainations.image.dockerfile
+                    "
+                  >
+                    <fa icon="question-circle" />
+                  </div>
+                </div>
+                <div
+                  class="block__explain"
+                  v-if="explainations.image.dockerfile"
+                >
+                  Relative path to dockerfile from context root. Default to
+                  ./Dockerfile
+                </div>
+                <div class="block__input">
+                  <input
+                    type="text"
+                    v-model="form.image.dockerfile"
+                    placeholder="./Dockerfile"
+                  />
+                </div>
+              </div>
               <div class="block block--horizontal">
                 <div class="block__title">Private Registry</div>
                 <div class="block__input">
@@ -177,39 +223,7 @@
                   />
                 </div>
               </div>
-              <transition name="fade">
-                <div class="block" v-if="form.image.private">
-                  <div class="block__title">
-                    Private registry type
-                    <div
-                      class="block__explain-toggle"
-                      :class="{
-                        'block__explain-toggle--active':
-                          explainations.image.registry,
-                      }"
-                      @click="
-                        explainations.image.registry =
-                          !explainations.image.registry
-                      "
-                    >
-                      <fa icon="question-circle" />
-                    </div>
-                  </div>
-                  <div
-                    class="block__explain"
-                    v-if="explainations.image.registry"
-                  >
-                    Supports basic authentication only
-                  </div>
-                  <div class="block__input">
-                    <input
-                      type="text"
-                      v-model="form.image.registry"
-                      :placeholder="conventionalRegistry()"
-                    />
-                  </div>
-                </div>
-              </transition>
+
               <transition name="fade">
                 <div class="block" v-if="form.image.private">
                   <div class="block__title">
@@ -228,11 +242,13 @@
                     </div>
                   </div>
                   <div class="block__explain" v-if="explainations.image.secret">
-                    Needed data keys:
-                    <ul>
-                      <li>CR_USERNAME</li>
-                      <li>CR_PASSWORD (this can also be an access token)</li>
-                    </ul>
+                    Supports basic authentication only. Required a secret of
+                    type kubernetes.io/dockerconfigjson. More instruction
+                    <a
+                      href="https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/"
+                      target="_blank"
+                      >here</a
+                    >.
                   </div>
                   <div class="block__input">
                     <input
@@ -284,7 +300,7 @@ export default {
       form: {
         enable: this.$props.nb.enabled,
         repo: {
-          id: -1,
+          id: this.nb.repo_id,
           uri: "",
           private: false,
           secret: "",
@@ -293,6 +309,7 @@ export default {
           name: "",
           private: false,
           registry: "",
+          dockerfile: "",
           secret: "",
         },
         "auto-sync": false,
@@ -309,6 +326,8 @@ export default {
         },
         image: {
           type: false,
+          registry: false,
+          dockerfile: false,
           secret: false,
         },
       },
@@ -323,7 +342,7 @@ export default {
       if (this.form.enable) {
         let validated = true;
         if (
-          !/^(?<protocol>http|https|ssh):\/\/(?<repo>(?:[A-Za-z0-9]+[./\-_])*(?:[A-Za-z0-9]+))(?:(?:\/\/)?(?<pathspec>(?:[A-Za-z0-9]+[/\-_])*(?:[A-Za-z0-9]+)))?(?:@(?<ref>(?:branches\/[A-ZFa-z0-9-_/]+)|(?:tags\/[A-ZFa-z0-9-_/]+)|(?:[A-Fa-f0-9]+)))?$/.test(
+          !/^(?<protocol>http|https):\/\/(?<repo>(?:[A-Za-z0-9]+[.:/\-_])*(?:[A-Za-z0-9]+))(?:(?:\/\/)?(?<pathspec>(?:[A-Za-z0-9]+[/\-_])*(?:[A-Za-z0-9]+)))?(?:@(?<ref>(?:branches\/[A-ZFa-z0-9-_/]+)|(?:tags\/[A-ZFa-z0-9-_/]+)|(?:[A-Fa-f0-9]+)))?$/.test(
             this.form.repo.uri
           )
         ) {
@@ -354,8 +373,11 @@ export default {
                 image: this.form.image.name,
                 registry_credential_secret: this.form.image.secret,
                 private_registry: this.form.image.private,
+                dockerfile: !this.form.image.dockerfile || this.form.image.dockerfile === ""
+                    ? "Dockerfile"
+                    : this.form.image.dockerfile,
                 registry:
-                  this.form.image.registry === ""
+                  !this.form.image.registry || this.form.image.registry === ""
                     ? this.conventionalRegistry()
                     : this.form.image.registry,
                 repo_id: this.form.repo.id,
@@ -363,6 +385,7 @@ export default {
                 private_repo: this.form.repo.private,
                 repo_credential_secret: this.form.repo.secret,
                 auto_sync: this.form["auto-sync"],
+                syncing: false,
               }),
               headers: {
                 "Content-Type": "application/json",
@@ -428,6 +451,8 @@ export default {
           (this.form.image = {
             name: d.image,
             private: d.private_registry,
+            registry: d.registry,
+            dockerfile: d.dockerfile,
             type: d.registry,
             secret: d.registry_credential_secret,
           }),

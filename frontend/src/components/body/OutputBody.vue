@@ -4,6 +4,7 @@
       <div
         class="tab-switcher__tab"
         :class="{ 'tab-switcher__tab--active': tab == 'track' }"
+        style="border-top-left-radius: 0.5rem;"
         @click="
           ready = false;
           tab = 'track';
@@ -21,6 +22,17 @@
       >
         Build
       </div>
+       <div
+        class="tab-switcher__tab"
+        :class="{ 'tab-switcher__tab--active': tab == 'push' }"
+        style="border-top-right-radius: 0.5rem;"
+        @click="
+          ready = false;
+          tab = 'push';
+        "
+      >
+        Push
+      </div>
     </div>
     <div class="tab-content">
       <div class="loader" v-show="!ready"></div>
@@ -29,6 +41,12 @@
           :appData="appData"
           :nb="nb"
           v-if="tab == 'build'"
+          @ready="ready = true"
+        />
+        <push-output-body
+          :appData="appData"
+          :nb="nb"
+          v-else-if="tab == 'push'"
           @ready="ready = true"
         />
         <track-output-body
@@ -45,9 +63,10 @@
 <script>
 import BuildOutputBody from "./BuildOutputBody.vue";
 import TrackOutputBody from "./TrackOutputBody.vue";
+import PushOutputBody from "./PushOutputBody.vue";
 
 export default {
-  components: { BuildOutputBody, TrackOutputBody },
+  components: { BuildOutputBody, TrackOutputBody, PushOutputBody },
   data() {
     return {
       tab: "track",
@@ -93,8 +112,11 @@ export default {
 
   .tab-content {
     padding: 2rem;
-    overflow-y: scroll;
+    overflow: scroll;
+    white-space: pre;
     max-height: 30rem;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.9rem;
   }
 }
 .loader {

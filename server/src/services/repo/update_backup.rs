@@ -1,4 +1,4 @@
- use sqlx::PgPool;
+use sqlx::PgPool;
 
 async fn backup_build_log(id: i32, pool: &PgPool) -> anyhow::Result<()> {
     let res = sqlx::query!("SELECT build_log FROM ci_jobs WHERE id=$1", &id)
@@ -7,7 +7,14 @@ async fn backup_build_log(id: i32, pool: &PgPool) -> anyhow::Result<()> {
 
     sqlx::query!(
         "UPDATE ci_jobs SET last_build_log = $1 WHERE id=$2",
-        res.build_log.unwrap(),
+        res.build_log.unwrap_or_default(),
+        &id
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query!(
+        "UPDATE ci_jobs SET build_log = '' WHERE id=$1",
         &id
     )
     .execute(pool)
@@ -23,7 +30,14 @@ pub async fn backup_track_log(id: i32, pool: &PgPool) -> anyhow::Result<()> {
 
     sqlx::query!(
         "UPDATE ci_jobs SET last_track_log = $1 WHERE id=$2",
-        res.track_log.unwrap(),
+        res.track_log.unwrap_or_default(),
+        &id
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query!(
+        "UPDATE ci_jobs SET track_log = '' WHERE id=$1",
         &id
     )
     .execute(pool)
@@ -39,7 +53,7 @@ async fn backup_digest(id: i32, pool: &PgPool) -> anyhow::Result<()> {
 
     sqlx::query!(
         "UPDATE ci_jobs SET last_digest = $1 WHERE id=$2",
-        res.digest.unwrap(),
+        res.digest.unwrap_or_default(),
         &id
     )
     .execute(pool)
@@ -55,7 +69,7 @@ async fn recover_build_log(id: i32, pool: &PgPool) -> anyhow::Result<()> {
 
     sqlx::query!(
         "UPDATE ci_jobs SET build_log = $1 WHERE id=$2",
-        res.last_build_log.unwrap(),
+        res.last_build_log.unwrap_or_default(),
         &id
     )
     .execute(pool)
@@ -64,21 +78,21 @@ async fn recover_build_log(id: i32, pool: &PgPool) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn recover_track_log(id: i32, pool: &PgPool) -> anyhow::Result<()> {
-    let res = sqlx::query!("SELECT last_track_log FROM ci_jobs WHERE id=$1", &id)
-        .fetch_one(pool)
-        .await?;
+// async fn recover_track_log(id: i32, pool: &PgPool) -> anyhow::Result<()> {
+//     let res = sqlx::query!("SELECT last_track_log FROM ci_jobs WHERE id=$1", &id)
+//         .fetch_one(pool)
+//         .await?;
 
-    sqlx::query!(
-        "UPDATE ci_jobs SET track_log = $1 WHERE id=$2",
-        res.last_track_log.unwrap(),
-        &id
-    )
-    .execute(pool)
-    .await?;
+//     sqlx::query!(
+//         "UPDATE ci_jobs SET track_log = $1 WHERE id=$2",
+//         res.last_track_log.unwrap_or_default(),
+//         &id
+//     )
+//     .execute(pool)
+//     .await?;
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 async fn recover_digest(id: i32, pool: &PgPool) -> anyhow::Result<()> {
     let res = sqlx::query!("SELECT last_digest FROM ci_jobs WHERE id=$1", &id)
@@ -87,7 +101,7 @@ async fn recover_digest(id: i32, pool: &PgPool) -> anyhow::Result<()> {
 
     sqlx::query!(
         "UPDATE ci_jobs SET digest = $1 WHERE id=$2",
-        res.last_digest.unwrap(),
+        res.last_digest.unwrap_or_default(),
         &id
     )
     .execute(pool)

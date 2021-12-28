@@ -1,28 +1,16 @@
 use cmd_lib::{run_cmd, spawn_with_output};
 use fancy_regex::Regex;
 
-use crate::models::dto;
+use crate::{config::Config, models::dto};
 
-// pub fn kube_notebooks(namespace: &str) -> anyhow::Result<Vec<String>> {
-//     let mut proc = spawn_with_output!(kubectl get notebook -n $namespace -o jsonpath="{.items[*].metadata.name}")?;
-//     let output = proc.wait_with_output()?;
-//     Ok(output.split(" ").map(|s| String::from(s)).collect())
-// }
-
-// pub fn has_kube_notebook(namespace: &str, name: &str) -> anyhow::Result<bool> {
-//     match run_cmd!(kubectl get notebook $name -n $namespace) {
-//         Ok(_) => Ok(true),
-//         Err(_) => Ok(false),
-//     }
-// }
-
-pub fn kf_notebooks(namespace: Option<&str>) -> anyhow::Result<Vec<String>> {
+pub fn kf_notebooks(namespace: Option<&str>, config: &Config) -> anyhow::Result<Vec<String>> {
+    let resource = &config.kubeflow.notebook_resource;
     let mut proc = match namespace {
         Some(ns) => {
-            spawn_with_output!(kubectl get notebook.kubeflow.org -n $ns -o jsonpath="{.items[*].metadata.name}")
+            spawn_with_output!(kubectl get $resource -n $ns -o jsonpath="{.items[*].metadata.name}")
         }
         None => {
-            spawn_with_output!(kubectl get notebook.kubeflow.org -A -o jsonpath="{.items[*].metadata.name}")
+            spawn_with_output!(kubectl get $resource -A -o jsonpath="{.items[*].metadata.name}")
         }
     }?;
 
@@ -52,8 +40,11 @@ pub fn kf_secrets(namespace: Option<&str>) -> anyhow::Result<Vec<String>> {
         .collect::<Vec<String>>())
 }
 
-pub fn all_kf_users() -> anyhow::Result<Vec<String>> {
-    let mut proc = spawn_with_output!(kubectl get profile.kubeflow.org -A -o jsonpath="{.items[*].spec.owner.name}")?;
+pub fn all_kf_users(config: &Config) -> anyhow::Result<Vec<String>> {
+    let resource = &config.kubeflow.profile_resource;
+
+    let mut proc =
+        spawn_with_output!(kubectl get $resource -A -o jsonpath="{.items[*].spec.owner.name}")?;
 
     Ok(proc
         .wait_with_output()?
@@ -63,12 +54,14 @@ pub fn all_kf_users() -> anyhow::Result<Vec<String>> {
         .collect::<Vec<String>>())
 }
 
-pub fn all_kf_users_namespaces() -> anyhow::Result<Vec<String>> {
-    all_kf_users().and_then(|vs| vs.iter().map(|s| kf_user_namespace(s)).collect())
+pub fn all_kf_users_namespaces(config: &Config) -> anyhow::Result<Vec<String>> {
+    all_kf_users(config).and_then(|vs| vs.iter().map(|s| kf_user_namespace(s, config)).collect())
 }
 
-pub fn kf_user_namespace(user: &str) -> anyhow::Result<String> {
-    let mut proc = spawn_with_output!(kubectl get profile.kubeflow.org -A -o jsonpath="{.items}")?;
+pub fn kf_user_namespace(user: &str, config: &Config) -> anyhow::Result<String> {
+    let resource = &config.kubeflow.profile_resource;
+
+    let mut proc = spawn_with_output!(kubectl get $resource -A -o jsonpath="{.items}")?;
 
     let res: serde_json::Value = serde_json::from_str(proc.wait_with_output()?.as_str())?;
     let fres = res
@@ -87,45 +80,95 @@ pub fn kf_user_namespace(user: &str) -> anyhow::Result<String> {
 
 pub fn kf_notebook_pod_image_digest(nb_id: &dto::NotebookId) -> anyhow::Result<String> {
     let (name, namespace) = (&nb_id.name, &nb_id.namespace);
-    let mut proc = spawn_with_output!(kubectl get po -n $namespace  -l notebook-name=$name -o yaml | grep imageID)?;
+    let mut proc = spawn_with_output!(kubectl get po -n $namespace  -l notebook-name=$name -o yaml | awk "/imageID/ && !/istio[/]proxy/")?;
 
     let output = proc.wait_with_output()?;
 
-    let re = Regex::new(r"^\s*imageID.*(?!istio/proxy)@(?<digest>sha256:[a-f0-9]+)")?;
-
-    Ok(re
-        .captures(&output)?
-        .expect("not able to capture")
-        .name("digest")
-        .map_or("", |m| m.as_str())
-        .to_owned())
+    let re = Regex::new(r"^\s*imageID.*@(?<digest>sha256:[a-f0-9]+)$")?;
+    if let Ok(ocapture) = re.captures(&output) {
+        return Ok(ocapture
+            .and_then(|capture| capture.name("digest"))
+            .map_or("", |m| m.as_str())
+            .to_owned());
+    }
+    Ok(String::default())
 }
 
-pub fn restart_nb_pod(nb_id: &dto::NotebookId) -> anyhow::Result<()> {
-    let current_policy = get_nb_image_pull_policy(nb_id)?;
-    patch_nb_image_pull_policy(nb_id, &current_policy, "Always")?;
+pub fn restart_nb_pod(
+    nb_id: &dto::NotebookId,
+    is_private: &bool,
+    registry_credential_secret: &str,
+    image: &str,
+    config: &Config,
+) -> anyhow::Result<()> {
+    // let current_policy = get_nb_image_pull_policy(&nb_id, config)?;
+    patch_nb_image_pull_secret(&nb_id, &is_private, &registry_credential_secret, config)?;
+    patch_nb_image(&nb_id, &image, config)?;
+    patch_nb_image_pull_policy(&nb_id, "Always", config)?;
     let (name, namespace) = (&nb_id.name, &nb_id.namespace);
     run_cmd!(
-        kubectl rollout restart statefulset $name -n $namespace
-        kubectl rollout status --watch --timeout=10s statefulset $name -n $namespace
+        kubectl delete statefulset $name -n $namespace;
     )?;
-    patch_nb_image_pull_policy(nb_id, "Always", &current_policy)?;
+    // kubectl rollout status --watch statefulset $name -n $namespace;
+    // patch_nb_image_pull_policy(&nb_id, &current_policy, config)?;
     Ok(())
 }
 
-fn patch_nb_image_pull_policy(nb_id: &dto::NotebookId, old_policy: &str, new_policy: &str) -> anyhow::Result<()> {
+fn patch_nb_image_pull_secret(
+    nb_id: &dto::NotebookId,
+    is_private: &bool,
+    secret: &str,
+    config: &Config,
+) -> anyhow::Result<()> {
+    let resource = &config.kubeflow.notebook_resource;
     let (name, namespace) = (&nb_id.name, &nb_id.namespace);
+    let jq_delete_key = format!("if .imagePullSecrets? then del(.imagePullSecrets[] | select(.name == \"{}\")) else . + {{\"imagePullSecrets\": []}} end", &secret);
+    let mut jq_format_string = String::from(".");
+    if *is_private {
+        jq_format_string = format!(
+            ".imagePullSecrets[.imagePullSecrets | length] |= . + {{\"name\": \"{}\"}}",
+            &secret
+        );
+    }
     let patch_content = spawn_with_output!(
-        kubectl get notebook $name -n $namespace -o jsonpath="{.spec.template.spec.containers[0]}" | sed -e "s/\"imagePullPolicy\":\"$old_policy\"/\"imagePullPolicy\":\"$new_policy\"/" | kubectl patch notebook $name -n $namespace -p - --type=merge
+        kubectl get $resource $name -n $namespace -o jsonpath="{.spec.template.spec}" | jq -rc $jq_delete_key | jq -rc $jq_format_string | jq .imagePullSecrets
     )?.wait_with_output()?;
-    run_cmd!(kubectl patch notebook $name -n $namespace -p "{\"spec\":{\"template\":{\"spec\":{\"containers\":[$patch_content]}}}}" --type=merge)?;
+    run_cmd!(kubectl patch $resource $name -n $namespace -p "{\"spec\":{\"template\":{\"spec\":{\"imagePullSecrets\":$patch_content}}}}" --type=merge)?;
     Ok(())
 }
 
-fn get_nb_image_pull_policy(nb_id: &dto::NotebookId) -> anyhow::Result<String> {
+fn patch_nb_image_pull_policy(
+    nb_id: &dto::NotebookId,
+    new_policy: &str,
+    config: &Config,
+) -> anyhow::Result<()> {
+    let resource = &config.kubeflow.notebook_resource;
     let (name, namespace) = (&nb_id.name, &nb_id.namespace);
-    Ok(spawn_with_output!(
-        kubectl get notebook $name -n $namespace -o jsonpath="{.spec.template.spec.containers[0].imagePullPolicy}"
-    )?
-    .wait_with_output()?)
+    let jq_format_string = format!(".imagePullPolicy = \"{}\"", &new_policy);
+    let patch_content = spawn_with_output!(
+        kubectl get $resource $name -n $namespace -o jsonpath="{.spec.template.spec.containers[0]}" | jq -rc $jq_format_string
+    )?.wait_with_output()?;
+    run_cmd!(kubectl patch $resource $name -n $namespace -p "{\"spec\":{\"template\":{\"spec\":{\"containers\":[$patch_content]}}}}" --type=merge)?;
+    Ok(())
+}
+
+// fn get_nb_image_pull_policy(nb_id: &dto::NotebookId, config: &Config) -> anyhow::Result<String> {
+//     let resource = &config.kubeflow.notebook_resource;
+
+//     let (name, namespace) = (&nb_id.name, &nb_id.namespace);
+//     Ok(spawn_with_output!(
+//         kubectl get $resource $name -n $namespace -o jsonpath="{.spec.template.spec.containers[0].imagePullPolicy}"
+//     )?
+//     .wait_with_output()?)
+// }
+
+fn patch_nb_image(nb_id: &dto::NotebookId, new_image: &str, config: &Config) -> anyhow::Result<()> {
+    let resource = &config.kubeflow.notebook_resource;
+    let (name, namespace) = (&nb_id.name, &nb_id.namespace);
+    let jq_format_string = format!(".image = \"{}\"", &new_image);
+    let patch_content = spawn_with_output!(
+        kubectl get $resource $name -n $namespace -o jsonpath="{.spec.template.spec.containers[0]}" | jq -rc $jq_format_string
+    )?.wait_with_output()?;
+    run_cmd!(kubectl patch $resource $name -n $namespace -p "{\"spec\":{\"template\":{\"spec\":{\"containers\":[$patch_content]}}}}" --type=merge)?;
+    Ok(())
 }
