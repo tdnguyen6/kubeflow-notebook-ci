@@ -1,13 +1,14 @@
 version: '3'
 services:
-  pg:
+  bin:
     image: cr.tidu.giize.com/rust-musl-builder
     volumes:
       - /home/tidu/.cargo/git:/home/rust/.cargo/git
       - /home/tidu/.cargo/registry:/home/rust/.cargo/registry
-      - ../../:/home/rust/src
-    command: cargo build --release
+      - .:/home/rust/src
+    command: >
+      sh -c "
+      cargo build --bin server --release;
+      cargo build --bin monitor --release;
+      "
 
-networks:
-  shiba:
-    external: true

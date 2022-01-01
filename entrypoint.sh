@@ -2,8 +2,25 @@
 
 install-kubectl-in-cluster.sh
 
-/app/server/kubeflow-notebook-ci &
+cd /app/server
+./bin &
 
-sleep 3
+curl -4 --connect-timeout 5 \
+    --max-time 10 \
+    --retry 10 \
+    --retry-connrefused \
+    --retry-delay 1 \
+    --retry-max-time 60 \
+    -ivvL localhost:4004/api/health
 
-/app/monitor/kubeflow-notebook-ci &
+CURL_EXIT_CODE=$?
+
+echo '$CURL_EXIT_CODE'": $CURL_EXIT_CODE"
+
+if [ $CURL_EXIT_CODE -eq 0 ]
+then
+    cd /app/monitor
+    ./bin
+else
+    echo "Server startup failed"
+fi

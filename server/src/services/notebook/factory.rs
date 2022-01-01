@@ -25,7 +25,7 @@ pub async fn put(
         RETURNING id",
         &nb_id.name,
         &nb_id.namespace,
-        &put_repo(&**pool, &nb.repo_uri, if nb.private_registry { &nb_id.namespace } else { "" }, nb.private_repo, &nb.repo_credential_secret, &nb.dockerfile).await?,
+        &put_repo(&**pool, &nb.repo_uri, if nb.private_registry || nb.private_repo { &nb_id.namespace } else { "" }, nb.private_repo, &nb.repo_credential_secret, &nb.dockerfile).await?,
         &nb.image,
         &nb.private_registry,
         &nb.registry,

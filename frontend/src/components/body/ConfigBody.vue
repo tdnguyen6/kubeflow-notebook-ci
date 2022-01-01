@@ -373,7 +373,9 @@ export default {
                 image: this.form.image.name,
                 registry_credential_secret: this.form.image.secret,
                 private_registry: this.form.image.private,
-                dockerfile: !this.form.image.dockerfile || this.form.image.dockerfile === ""
+                dockerfile:
+                  !this.form.image.dockerfile ||
+                  this.form.image.dockerfile === ""
                     ? "Dockerfile"
                     : this.form.image.dockerfile,
                 registry:
@@ -416,9 +418,18 @@ export default {
             method: "DELETE",
           }
         )
-          .then()
-          .catch()
-          .finally(this.closeModal());
+          .then(() => {
+            this.modalConfig = {
+              show: true,
+              type: "success",
+            };
+          })
+          .catch(() => {
+            this.modalConfig = {
+              show: true,
+              type: "failure",
+            };
+          });
       }
     },
     closeModal() {

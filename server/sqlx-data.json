@@ -1,0 +1,978 @@
+{
+  "db": "PostgreSQL",
+  "06b5b5ad422a1bf69d738e63b578c1f88064a581f7825f629922cdc75456f157": {
+    "query": "INSERT INTO notebooks(name, namespace, repo_id, image, private_registry, registry, registry_credential_secret, auto_sync) \n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \n        ON CONFLICT (namespace, name) DO UPDATE SET\n            image = EXCLUDED.image,\n            repo_id = EXCLUDED.repo_id,\n            registry_credential_secret = EXCLUDED.registry_credential_secret,\n            private_registry = EXCLUDED.private_registry,\n            registry = EXCLUDED.registry,\n            auto_sync = EXCLUDED.auto_sync\n        RETURNING id",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int4"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Varchar",
+          "Varchar",
+          "Int4",
+          "Varchar",
+          "Bool",
+          "Varchar",
+          "Varchar",
+          "Bool"
+        ]
+      },
+      "nullable": [
+        false
+      ]
+    }
+  },
+  "10fd903e7b4a065c7b95fe45f9712fcffdf1b335e8c5ab8b9f5e180b588005fc": {
+    "query": "SELECT \n            c.id AS repo_id,\n            c.uri,\n            c.secret_namespace,\n            c.build_log,\n            c.track_log,\n            c.digest,\n            c.private_repo,\n            c.dockerfile,\n            c.repo_credential_secret,\n            c.updating,\n            n.id,\n            n.name,\n            n.namespace,\n            n.image,\n            n.registry_credential_secret,\n            n.private_registry,\n            n.registry,\n            n.syncing,\n            n.auto_sync\n        FROM ci_jobs c\n        JOIN notebooks n ON c.id = n.repo_id\n        WHERE c.should_track = true\n        ",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "repo_id",
+          "type_info": "Int4"
+        },
+        {
+          "ordinal": 1,
+          "name": "uri",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "secret_namespace",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 3,
+          "name": "build_log",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "track_log",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 5,
+          "name": "digest",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 6,
+          "name": "private_repo",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 7,
+          "name": "dockerfile",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 8,
+          "name": "repo_credential_secret",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 9,
+          "name": "updating",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 10,
+          "name": "id",
+          "type_info": "Int4"
+        },
+        {
+          "ordinal": 11,
+          "name": "name",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 12,
+          "name": "namespace",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 13,
+          "name": "image",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 14,
+          "name": "registry_credential_secret",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 15,
+          "name": "private_registry",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 16,
+          "name": "registry",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 17,
+          "name": "syncing",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 18,
+          "name": "auto_sync",
+          "type_info": "Bool"
+        }
+      ],
+      "parameters": {
+        "Left": []
+      },
+      "nullable": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    }
+  },
+  "1112b21f05111d1c3a42960b5dd280c873bbc408fef46a3455a3026558e93250": {
+    "query": "UPDATE ci_jobs SET build_log = $1 WHERE id=$2",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Int4"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "1606317f98a714f0a9b362ad499c604b663f314fbdc2a23f3107a052d24519a0": {
+    "query": "UPDATE ci_jobs SET updating = false WHERE id=$1",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Int4"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "181f3586b930591751ca5fa7ad1dc0951602e0a513e24e69c71adeed34be6e4b": {
+    "query": "UPDATE notebooks SET push_log = $1 WHERE name = $2 AND namespace = $3",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "190f87af94c57cde46a16633cb43f230dc374103b8e77113e519fe0e4beea962": {
+    "query": "SELECT \n            id,\n            uri,\n            secret_namespace,\n            build_log,\n            track_log,\n            dockerfile,\n            digest,\n            private_repo,\n            repo_credential_secret,\n            updating\n        FROM ci_jobs WHERE id = $1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int4"
+        },
+        {
+          "ordinal": 1,
+          "name": "uri",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "secret_namespace",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 3,
+          "name": "build_log",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "track_log",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 5,
+          "name": "dockerfile",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 6,
+          "name": "digest",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 7,
+          "name": "private_repo",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 8,
+          "name": "repo_credential_secret",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 9,
+          "name": "updating",
+          "type_info": "Bool"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int4"
+        ]
+      },
+      "nullable": [
+        false,
+        true,
+        true,
+        true,
+        true,
+        false,
+        true,
+        true,
+        true,
+        true
+      ]
+    }
+  },
+  "1fae1aae01625c132c80afa14ae481ee53c2b0f3e25b2e5d4744087e7d44b85f": {
+    "query": "UPDATE notebooks SET syncing = false",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": []
+      },
+      "nullable": []
+    }
+  },
+  "20552d91d256c09458ff1680f78722ec184e817cb256adbdfc69ca79402dacee": {
+    "query": "SELECT \n            n.id,\n            n.name,\n            n.namespace,\n            n.image,\n            n.private_registry,\n            n.registry,\n            n.registry_credential_secret,\n            n.repo_id,\n            n.auto_sync,\n            n.syncing,\n            c.uri,\n            c.private_repo,\n            c.dockerfile,\n            c.repo_credential_secret\n        FROM notebooks n\n        JOIN ci_jobs c\n            ON n.repo_id = c.id\n        WHERE n.name = $1 AND n.namespace = $2",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int4"
+        },
+        {
+          "ordinal": 1,
+          "name": "name",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "namespace",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 3,
+          "name": "image",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 4,
+          "name": "private_registry",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 5,
+          "name": "registry",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 6,
+          "name": "registry_credential_secret",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 7,
+          "name": "repo_id",
+          "type_info": "Int4"
+        },
+        {
+          "ordinal": 8,
+          "name": "auto_sync",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 9,
+          "name": "syncing",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 10,
+          "name": "uri",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 11,
+          "name": "private_repo",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 12,
+          "name": "dockerfile",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 13,
+          "name": "repo_credential_secret",
+          "type_info": "Varchar"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        true
+      ]
+    }
+  },
+  "2354013750e50f5d310cdbd8ff714844573250d314dfb0f33593b2c8eb1ca060": {
+    "query": "UPDATE ci_jobs SET digest = $1 WHERE id=$2",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Varchar",
+          "Int4"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "239e512e184b53611e8176c206af007c9536f69ca6030779210f04c4d14c48a9": {
+    "query": "SELECT last_digest FROM ci_jobs WHERE id=$1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "last_digest",
+          "type_info": "Varchar"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int4"
+        ]
+      },
+      "nullable": [
+        true
+      ]
+    }
+  },
+  "281b737f10ab805cbe9cf9bdde796fe5db02480fdc90ad1a0f2afb0e40162c84": {
+    "query": "DELETE FROM ci_jobs\n            WHERE id = (\n                SELECT repo_id FROM notebooks\n                WHERE name = $1 AND namespace = $2\n            )",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "2da03539c556d4544f0bae74118b73237c4cd543a1cb8c8e3bd012545cbfd234": {
+    "query": "UPDATE notebooks SET syncing = true WHERE name=$1 AND namespace = $2",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "2e29d14805e5107242d89dacebbc1c2eb1e642b31c18a71597fa5b8f2b9d3799": {
+    "query": "SELECT updating FROM ci_jobs WHERE id=$1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "updating",
+          "type_info": "Bool"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int4"
+        ]
+      },
+      "nullable": [
+        true
+      ]
+    }
+  },
+  "53d62040a2c0ee27d2aa4cd6a2f7b502c46bf4187f8462ee647d040ecc6700e8": {
+    "query": "DELETE FROM ci_jobs WHERE id NOT IN (SELECT DISTINCT repo_id FROM notebooks)",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": []
+      },
+      "nullable": []
+    }
+  },
+  "54c47efa95bf00bfeff979a0b378d27fdf8cd69e8420efd26b9e05f7a6c32d01": {
+    "query": "UPDATE ci_jobs SET last_track_log = $1 WHERE id=$2",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Int4"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "57ce0260e8fc28dfef826b876b0f1bbc196aad3c735f26df9896c1f31a7d840f": {
+    "query": "SELECT private_registry, registry_credential_secret, image FROM notebooks WHERE name=$1 AND namespace = $2",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "private_registry",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 1,
+          "name": "registry_credential_secret",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "image",
+          "type_info": "Varchar"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": [
+        true,
+        true,
+        true
+      ]
+    }
+  },
+  "5b1dfb03240fece91871eb98d4bef2fda5e6b1df8916e31fa586179ba37afb02": {
+    "query": "SELECT last_build_log FROM ci_jobs WHERE id=$1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "last_build_log",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int4"
+        ]
+      },
+      "nullable": [
+        true
+      ]
+    }
+  },
+  "5c09898c633ae1a14c3d32e66812eded3f334fb34f4f233c3a0b30f9d98be6a1": {
+    "query": "SELECT build_log FROM ci_jobs WHERE id=$1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "build_log",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int4"
+        ]
+      },
+      "nullable": [
+        true
+      ]
+    }
+  },
+  "64eb05a27dcc329130b29767e2adc9f0236fe18355af29334bacc14c183e4816": {
+    "query": "SELECT digest FROM ci_jobs WHERE id=$1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "digest",
+          "type_info": "Varchar"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int4"
+        ]
+      },
+      "nullable": [
+        true
+      ]
+    }
+  },
+  "6aa7ef9d83aa7e642c0f6ac865597ec5b44abcf927918d958fa531980c799e6c": {
+    "query": "UPDATE ci_jobs SET should_track = $2 WHERE id=$1",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Int4",
+          "Bool"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "6d3aebb4517141b95e35ddcd8edfa992622c6ef187940ae56b7565ee9648ff26": {
+    "query": "DELETE FROM notebooks WHERE name = $1 AND namespace = $2",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "6e84fe4c64f0238d6e89f6b052d9a082174d62f43ddf769a497a9d8d9a5b72aa": {
+    "query": "UPDATE ci_jobs SET track_log = '' WHERE id=$1",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Int4"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "6e8da427c6a3a2ab1997cba54e40c3b975c83d4008dd625994081eabac715662": {
+    "query": "UPDATE ci_jobs SET track_log = $1 WHERE id=$2",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Int4"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "72b72d4f66d9f19cbc694cbbaac846cf9ddabbb19a6d1e03039acf89a81adecc": {
+    "query": "UPDATE ci_jobs SET last_digest = $1 WHERE id=$2",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Varchar",
+          "Int4"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "85a083a298cbddc36e48942ad9aec60649f83535e2ad8bb57359df6e42269490": {
+    "query": "SELECT * FROM notebooks WHERE name=$1 AND namespace = $2",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int4"
+        },
+        {
+          "ordinal": 1,
+          "name": "namespace",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "name",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 3,
+          "name": "repo_id",
+          "type_info": "Int4"
+        },
+        {
+          "ordinal": 4,
+          "name": "image",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 5,
+          "name": "push_log",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 6,
+          "name": "last_push_log",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 7,
+          "name": "registry_credential_secret",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 8,
+          "name": "private_registry",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 9,
+          "name": "registry",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 10,
+          "name": "syncing",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 11,
+          "name": "auto_sync",
+          "type_info": "Bool"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    }
+  },
+  "978c19f8f909fe9549add566748c9019bcfd01a0c041e6265c7f22a9deaf4705": {
+    "query": "SELECT n.id FROM ci_jobs c \n        JOIN notebooks n ON c.id = n.repo_id\n        WHERE n.name = $1 AND n.namespace = $2",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int4"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": [
+        false
+      ]
+    }
+  },
+  "aa32d115b22b37b0499def8211eeb5472c25aee0809bc37b8acaf46b5afc40eb": {
+    "query": "INSERT INTO ci_jobs(uri, secret_namespace, private_repo, repo_credential_secret, dockerfile) \n        VALUES ($1, $2, $3, $4, $5) \n        ON CONFLICT (uri, secret_namespace, dockerfile) DO UPDATE SET\n            uri = EXCLUDED.uri,\n            secret_namespace = EXCLUDED.secret_namespace,\n            private_repo = EXCLUDED.private_repo,\n            repo_credential_secret = EXCLUDED.repo_credential_secret,\n            dockerfile = EXCLUDED.dockerfile\n        RETURNING id",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Int4"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Varchar",
+          "Varchar",
+          "Bool",
+          "Varchar",
+          "Varchar"
+        ]
+      },
+      "nullable": [
+        false
+      ]
+    }
+  },
+  "b4e4552e2221f197c42d0419f0b2e6d8b14e0eaa95e7c8a1f0e5e05271ed206e": {
+    "query": "UPDATE ci_jobs SET build_log = '' WHERE id=$1",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Int4"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "b89f2584c0a66cbfc2199b02749bbe9e1d3fafdbe84408f088a916456c852135": {
+    "query": "UPDATE notebooks SET push_log = '' WHERE name = $1 AND namespace = $2",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "be02c5820b34b7c12232f4b2cb193b80c7d6e39455ad145889c8d15a2c0861b4": {
+    "query": "UPDATE notebooks SET syncing = false WHERE name=$1 AND namespace = $2",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "c2668a0d3e6d94313ac215a87f14b901ad60edbb49ab98c8ebe1192be8c9ab6c": {
+    "query": "SELECT build_log FROM ci_jobs WHERE id = $1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "build_log",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int4"
+        ]
+      },
+      "nullable": [
+        true
+      ]
+    }
+  },
+  "d1ff706194a91191e62a57a2a2be1b5483f2c842747919fbc89b9e1edfe939ae": {
+    "query": "DELETE FROM notebooks WHERE namespace != ALL($1)",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "TextArray"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "d7c1233fb10699ffe44bb1c9ce32beaee3b5babb31d544adf337dfdd3db9f1c5": {
+    "query": "SELECT push_log FROM notebooks WHERE name = $1 AND namespace = $2",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "push_log",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": [
+        true
+      ]
+    }
+  },
+  "d8d05a00e531c62bf76207bd0bd83d4990eb765a0823694d7f65bbc97444b7e1": {
+    "query": "UPDATE ci_jobs SET last_build_log = $1 WHERE id=$2",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Int4"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "ed7dde85904887cd99bb13455725322f35841f9bfe7f649848815e778dfbcb32": {
+    "query": "SELECT n.repo_id, n.name, n.syncing, c.updating, c.digest, c.dockerfile\n            FROM notebooks n\n            JOIN ci_jobs c\n            ON n.repo_id = c.id\n            WHERE n.namespace = $1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "repo_id",
+          "type_info": "Int4"
+        },
+        {
+          "ordinal": 1,
+          "name": "name",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "syncing",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 3,
+          "name": "updating",
+          "type_info": "Bool"
+        },
+        {
+          "ordinal": 4,
+          "name": "digest",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 5,
+          "name": "dockerfile",
+          "type_info": "Varchar"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ]
+    }
+  },
+  "fb13b35a6376dfbfe7d74353aa621283170c5df9095e20831fb6477e11552e2b": {
+    "query": "UPDATE ci_jobs SET updating = true WHERE id=$1",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Int4"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "fc75d3ff81c00d949cb5e282315009f70917aad916980239045eb69b66d6719e": {
+    "query": "SELECT track_log FROM ci_jobs WHERE id=$1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "track_log",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int4"
+        ]
+      },
+      "nullable": [
+        true
+      ]
+    }
+  },
+  "fed4ad570add402de6cf75a06738a1c1802a6f111c208efa80fceffac122167e": {
+    "query": "UPDATE ci_jobs SET updating = false",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": []
+      },
+      "nullable": []
+    }
+  },
+  "ff3bfc1b49630635984b395115d3725aa9e5b5fe60bf446bb04073dc45d49afa": {
+    "query": "UPDATE notebooks SET last_push_log = push_log WHERE name = $1 AND namespace = $2",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": []
+    }
+  }
+}

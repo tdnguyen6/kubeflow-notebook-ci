@@ -493,6 +493,7 @@ fn main() -> anyhow::Result<()> {
 
     dotenv::dotenv().ok();
     let repos_map_lock = Arc::new(RwLock::new(HashMap::default()));
+    println!("Starting notebook-ci monitoring...");
 
     while !term.load(Ordering::Relaxed) {
         manager(repos_map_lock.clone())?;

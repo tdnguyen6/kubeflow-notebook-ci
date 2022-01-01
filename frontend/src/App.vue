@@ -150,6 +150,7 @@ body {
   *:after {
     box-sizing: border-box;
   }
+  background: white;
 }
 
 #app {

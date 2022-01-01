@@ -1,5 +1,5 @@
 [package]
-name = "kubeflow-notebook-ci"
+name = "monitor"
 version = "0.1.0"
 edition = "2021"
 
@@ -18,12 +18,5 @@ fancy-regex = "0.7.1"
 lazy_static = "1.4.0"
 chrono = "0.4.19"
 signal-hook = "0.3.13"
-
-[profile.release]
-# strip = true  # Automatically strip symbols from the binary.
-opt-level = "z"  # Optimize for size.
-lto = true
-codegen-units = 1
-panic = "abort"
 
 [features]

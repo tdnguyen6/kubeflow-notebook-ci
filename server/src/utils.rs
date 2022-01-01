@@ -80,7 +80,7 @@ pub fn kf_user_namespace(user: &str, config: &Config) -> anyhow::Result<String> 
 
 pub fn kf_notebook_pod_image_digest(nb_id: &dto::NotebookId) -> anyhow::Result<String> {
     let (name, namespace) = (&nb_id.name, &nb_id.namespace);
-    let mut proc = spawn_with_output!(kubectl get po -n $namespace  -l notebook-name=$name -o yaml | awk "/imageID/ && !/istio[/]proxy/")?;
+    let mut proc = spawn_with_output!(kubectl get po -n $namespace  -l notebook-name=$name -o yaml | awk "/imageID/ && !/istio\\/proxy/")?;
 
     let output = proc.wait_with_output()?;
 

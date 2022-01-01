@@ -6,7 +6,7 @@ mod models;
 mod services;
 mod utils;
 
-#[actix_web::get("/api")]
+#[actix_web::get("/api/health")]
 async fn index() -> actix_web::Result<impl actix_web::Responder, Box<dyn std::error::Error>> {
     Ok("good")
 }
@@ -22,7 +22,7 @@ async fn main() -> anyhow::Result<()> {
         .connect(config.database_url.as_str())
         .await?;
     let pool2 = pool.clone();
-
+    println!("Starting notebook-ci server...");
     sqlx::migrate!().run(&pool).await?;
     HttpServer::new(move || {
         actix_web::App::new()

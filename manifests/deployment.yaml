@@ -1,0 +1,76 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: kubeflow-notebook-ci
+spec:
+  selector:
+    app: kubeflow-notebook-ci
+  ports:
+    - port: 80
+      targetPort: 4004
+  type: LoadBalancer
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubeflow-notebook-ci
+spec:
+  selector:
+    matchLabels:
+      app: kubeflow-notebook-ci
+  template:
+    metadata:
+      labels:
+        app: kubeflow-notebook-ci
+    spec:
+      containers:
+        - name: kubeflow-notebook-ci
+          image: cr.tidu.giize.com/kubeflow-notebook-ci
+          ports:
+            - containerPort: 4004
+          # volumeMounts:
+          #   - mountPath: /var/lib/registry
+          #     name: container-registry-data
+          #   - name: container-registry-config
+          #     mountPath: /etc/docker/registry
+          imagePullPolicy: Always
+        - name: db
+          image: postgres
+          env:
+            - name: POSTGRES_DB
+              value: pg
+            - name: POSTGRES_USER
+              value: pg
+            - name: POSTGRES_PASSWORD
+              value: pg
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - mountPath: /var/lib/postgresql
+              name: db
+          imagePullPolicy: IfNotPresent
+      volumes:
+        # - name: container-registry-config
+        #   configMap:
+        #     name: kubeflow-notebook-ci
+        #     items:
+        #       - key: config.yml
+        #         path: config.yml
+        # - name: container-registry-data
+        #   emptyDir: {}
+        - name: db
+          emptyDir: {}
+      # persistentVolumeClaim:
+      #   claimName: kubeflow-notebook-ci
+      restartPolicy: Always
+# ---
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   name: kubeflow-notebook-ci
+# spec:
+#   accessModes:
+#     - ReadWriteOnce
+#   resources:
+#     requests:
+#       storage: 10Gi
