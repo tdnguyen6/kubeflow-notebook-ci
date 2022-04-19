@@ -28,6 +28,9 @@ pub fn parse_git_uri(uri: &str) -> anyhow::Result<HashMap<String, String>> {
                     (*hm.get_mut("ref").unwrap()).replace("branches/", "origin/");
             } else if hm["ref"].starts_with("tags/") {
                 (*hm.get_mut("ref_kind").unwrap()) = String::from("tag");
+            } else if hm["ref"].is_empty() {
+                (*hm.get_mut("ref").unwrap()) = String::from("HEAD");
+                (*hm.get_mut("ref_kind").unwrap()) = String::from("branch");
             }
             return Ok(hm);
         }

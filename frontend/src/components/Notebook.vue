@@ -21,7 +21,7 @@
           <div class="cta" @click="body = 'build-output'">
             <div class="tooltip">
               <fa icon="eye" />
-              <div class="tooltip__text">Build ouput</div>
+              <div class="tooltip__text">View outputs</div>
             </div>
           </div>
           <div class="tooltip" v-if="nb.building">

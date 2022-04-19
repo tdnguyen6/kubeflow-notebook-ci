@@ -63,6 +63,11 @@ fn monitor(
             "{}://{}:{}@{}",
             &info["protocol"], &git_basic_auth.username, &git_basic_auth.password, &info["repo"]
         );
+    } else {
+        (*info.get_mut("repo").unwrap()) = format!(
+            "{}://{}",
+            &info["protocol"], &info["repo"]
+        );
     }
     if monitor_path.is_dir() {
         if !last_run_success

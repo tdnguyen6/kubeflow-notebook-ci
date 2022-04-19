@@ -6,7 +6,6 @@ pub struct Config {
     pub server: ServerCfg,
     pub database_url: String,
     pub database_maxcon: u32,
-    pub cluster_container_registry: String,
     pub kubeflow: KubeflowCfg,
     pub default_image_name: String,
 }
